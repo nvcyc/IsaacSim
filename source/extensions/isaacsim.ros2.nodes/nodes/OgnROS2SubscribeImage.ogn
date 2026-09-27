@@ -1,0 +1,34 @@
+{
+    "isaacsim.ros2.bridge.ROS2SubscribeImage": {
+        "version": 1,
+        "icon": "icons/isaac-sim.svg",
+        "description": "Receive a standard ROS Image as leased CUDA memory using the optional Lyrical backend. Enqueue all consumer work on cudaStream before the next evaluation. The image pointer is read-only and valid until the next evaluation or reset.",
+        "metadata": { "uiName": "ROS2 Subscribe Image" },
+        "categoryDefinitions": "config/CategoryDefinition.json",
+        "categories": "isaacRos2:subscriber",
+        "inputs": {
+            "execIn": { "type": "execution", "description": "Poll for an image." },
+            "context": { "type": "uint64", "default": 0, "description": "ROS context; zero uses the default context." },
+            "nodeNamespace": { "type": "string", "default": "", "description": "ROS node namespace." },
+            "topicName": { "type": "string", "default": "image", "description": "Standard sensor_msgs/Image topic." },
+            "qosProfile": { "type": "string", "default": "", "description": "Optional QoS JSON profile." },
+            "queueSize": { "type": "uint64", "default": 10, "description": "Queue depth when qosProfile is empty." },
+            "cudaDeviceIndex": { "type": "int", "default": 0, "description": "CUDA device used by the downstream consumer." }
+        },
+        "outputs": {
+            "execOut": { "type": "execution", "description": "Execute the consumer after receiving an image." },
+            "dataPtr": { "type": "uint64", "description": "Read-only leased CUDA pointer; never a host pointer." },
+            "cudaStream": { "type": "uint64", "description": "Consumer CUDA stream; enqueue all image reads here before the next evaluation." },
+            "cudaDeviceIndex": { "type": "int", "description": "Device owning dataPtr." },
+            "bufferSize": { "type": "uint64", "description": "Payload size in bytes." },
+            "width": { "type": "uint", "description": "Image width." },
+            "height": { "type": "uint", "description": "Image height." },
+            "step": { "type": "uint", "description": "Row stride in bytes." },
+            "encoding": { "type": "string", "description": "ROS image encoding." },
+            "frameId": { "type": "string", "description": "ROS coordinate frame." },
+            "timeStamp": { "type": "double", "description": "ROS header timestamp in seconds." },
+            "isBigEndian": { "type": "bool", "description": "Whether the image pixels use big endian byte order." },
+            "promotedFromHost": { "type": "bool", "description": "True when CPU transport required H2D promotion." }
+        }
+    }
+}

@@ -31,6 +31,7 @@
 #include <isaacsim/core/includes/Buffer.hpp>
 #include <isaacsim/core/includes/ScopedCudaDevice.hpp>
 #include <isaacsim/ros2/core/Ros2Node.hpp>
+#include <isaacsim/ros2/core/Ros2GpuImage.hpp>
 
 #include <OgnROS2PublishImageDatabase.h>
 #include <atomic>
@@ -340,9 +341,48 @@ public:
         }
 
         std::string encoding = db.tokenToString(db.inputs.encoding());
+        if (db.inputs.cudaDeviceIndex() >= 0)
+        {
+            if (auto* gpuImage = dynamic_cast<Ros2GpuImage*>(state.m_message.get()))
+            {
+                if (db.inputs.bufferSize() == 0 && static_cast<carb::Format>(db.inputs.format()) != carb::Format::eR32_SFLOAT)
+                {
+                    db.logError("Lyrical image texture publication supports eR32_SFLOAT only");
+                    return false;
+                }
+                isaacsim::core::includes::ScopedDevice device(db.inputs.cudaDeviceIndex());
+                if (!state.m_streamNotCreated && state.m_streamDevice != db.inputs.cudaDeviceIndex())
+                {
+                    CUDA_CHECK(cudaStreamDestroy(state.m_stream));
+                    state.m_streamNotCreated = true;
+                }
+                if (state.m_streamNotCreated)
+                {
+                    CUDA_CHECK(cudaStreamCreate(&state.m_stream));
+                    state.m_streamNotCreated = false;
+                    state.m_streamDevice = db.inputs.cudaDeviceIndex();
+                }
+                if (gpuImage->prepareDeviceImage(reinterpret_cast<const void*>(db.inputs.dataPtr()),
+                        db.inputs.bufferSize(), db.inputs.width(), db.inputs.height(), encoding,
+                        db.inputs.cudaDeviceIndex(), state.m_stream))
+                {
+                    // Source consumption completed within this evaluation. The
+                    // backend records the write event before publishing storage.
+                    state.m_publisher->publish(state.m_message->getPtr());
+                    return true;
+                }
+            }
+        }
         bool usePinnedMemory = (db.inputs.cudaDeviceIndex() != -1);
         state.m_message->generateBuffer(db.inputs.height(), db.inputs.width(), encoding, usePinnedMemory);
         size_t totalBytes = state.m_message->getTotalBytes();
+        if (dynamic_cast<Ros2GpuImage*>(state.m_message.get()) &&
+            (totalBytes == 0 || (db.inputs.cudaDeviceIndex() >= 0 && db.inputs.bufferSize() != 0 &&
+                                totalBytes != db.inputs.bufferSize())))
+        {
+            db.logError("Invalid Lyrical image layout or buffer size");
+            return false;
+        }
         void* dataPtr = state.m_message->getBufferPtr();
 
         if (db.inputs.cudaDeviceIndex() == -1)

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.0] - 2026-09-27
+### Added
+- Optional source-built Lyrical backend with C++ Image buffers and an independent GPU lease interface. See `Lyrical.md` for build requirements and validation limits.
+
+### Changed
+- Lyrical requires its matching backend and no longer falls back to Jazzy.
+
 ## [1.11.0] - 2026-07-23
 ### Added
 - `Ros2ContextHandle.getDomainId`: add an API for querying the effective ROS domain ID.

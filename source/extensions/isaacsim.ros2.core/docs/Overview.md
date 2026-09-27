@@ -52,7 +52,7 @@ Two library sets are involved at startup:
 
 When a sourced ROS environment provides compatible libraries, the backend resolves ROS dependencies from that environment. If no compatible sourced environment is available, Isaac Sim can use the bundled ROS libraries. In both cases, Isaac Sim still loads an Isaac backend factory library, because system ROS libraries do not implement `Ros2Factory` or export `createFactoryC`.
 
-When `ROS_DISTRO` is set, the plugin first tries the matching backend, such as `isaacsim.ros2.core.humble` or `isaacsim.ros2.core.jazzy`. If no matching backend exists for a sourced, unsupported distribution, the plugin falls back to the Jazzy backend while continuing to resolve ROS C symbols from the active ROS library search path when possible.
+When `ROS_DISTRO` is set, the plugin first tries the matching backend, such as `isaacsim.ros2.core.humble` or `isaacsim.ros2.core.jazzy`. Lyrical requires the optional `isaacsim.ros2.core.lyrical` backend and fails with a build/environment diagnostic if it cannot load. Other sourced, unsupported distributions retain the experimental Jazzy fallback. See [Lyrical image transport](Lyrical.md) for architecture, source-build instructions, tests, and current validation limits.
 
 ## ROS C API and `rclcpp`
 

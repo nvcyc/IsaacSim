@@ -14,6 +14,11 @@
 // limitations under the License.
 
 #include "Ros2Impl.hpp"
+#if defined(ROS2_BACKEND_LYRICAL)
+#    include "../lyrical/Ros2LyricalImage.hpp"
+#    include <rmw/rmw.h>
+#    include <cstring>
+#endif
 
 #include <isaacsim/ros2/core/Ros2Macros.hpp>
 #include <rcl/rcl.h>
@@ -48,6 +53,21 @@ Ros2SubscriberImpl::Ros2SubscriberImpl(Ros2NodeHandle* nodeHandle,
     (*m_subscription) = rcl_get_zero_initialized_subscription();
     rcl_subscription_options_t subscriptionOptions = rcl_subscription_get_default_options();
     subscriptionOptions.qos = Ros2QoSProfileConverter::convert(qos);
+#if defined(ROS2_BACKEND_LYRICAL)
+    // Generic C/introspection subscriptions remain CPU-only. "any" preserves
+    // CPU operation if the CUDA plugin is not installed in the sourced prefix.
+    if (typeSupport == getLyricalImageTypeSupport() &&
+        std::strcmp(rmw_get_implementation_identifier(), "rmw_fastrtps_cpp") == 0)
+    {
+        const auto result = rcl_subscription_options_set_acceptable_buffer_backends("any", &subscriptionOptions);
+        if (result != RCL_RET_OK)
+        {
+            RCL_ERROR_MSG(Ros2SubscriberImpl, rcl_subscription_options_set_acceptable_buffer_backends);
+            m_subscription.reset();
+            return;
+        }
+    }
+#endif
 
     rcl_ret_t rc = rcl_subscription_init(m_subscription.get(), static_cast<rcl_node_t*>(m_nodeHandle->getNode()),
                                          static_cast<const rosidl_message_type_support_t*>(typeSupport), topicName,

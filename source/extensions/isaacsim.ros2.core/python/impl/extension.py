@@ -76,7 +76,11 @@ class ROS2CoreExtension(omni.ext.IExt):
             # Signal to C++ plugin that internal lib fallback is allowed (no user-sourced ROS)
             carb.settings.get_settings().set_bool("/exts/isaacsim.ros2.bridge/internal_lib_fallback", True)
 
-        if ros_distro not in SUPPORTED_ROS_DISTROS.values():
+        if ros_distro == "lyrical":
+            omni.kit.app.get_app().print_and_log(
+                "Using the optional source-built ROS 2 Lyrical backend and sourced ROS libraries."
+            )
+        elif ros_distro not in SUPPORTED_ROS_DISTROS.values():
             omni.kit.app.get_app().print_and_log(
                 f"[Experimental] ROS_DISTRO '{ros_distro}' is not an officially supported distribution. "
                 "Support for non-default ROS 2 distributions is experimental. "

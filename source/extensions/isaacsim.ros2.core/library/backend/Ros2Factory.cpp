@@ -14,6 +14,9 @@
 // limitations under the License.
 
 #include "Ros2Impl.hpp"
+#if defined(ROS2_BACKEND_LYRICAL)
+#    include "../lyrical/Ros2LyricalImage.hpp"
+#endif
 #include "rmw/validate_full_topic_name.h"
 #include "rmw/validate_namespace.h"
 #include "rmw/validate_node_name.h"
@@ -110,7 +113,11 @@ std::shared_ptr<Ros2CameraInfoMessage> Ros2FactoryImpl::createCameraInfoMessage(
 
 std::shared_ptr<Ros2ImageMessage> Ros2FactoryImpl::createImageMessage()
 {
+#if defined(ROS2_BACKEND_LYRICAL)
+    return std::make_shared<Ros2LyricalImageMessage>();
+#else
     return std::make_shared<Ros2ImageMessageImpl>();
+#endif
 }
 
 std::shared_ptr<Ros2CompressedImageMessage> Ros2FactoryImpl::createCompressedImageMessage()
@@ -120,7 +127,7 @@ std::shared_ptr<Ros2CompressedImageMessage> Ros2FactoryImpl::createCompressedIma
 
 std::shared_ptr<Ros2NitrosBridgeImageMessage> Ros2FactoryImpl::createNitrosBridgeImageMessage()
 {
-#if defined(_WIN32)
+#if defined(_WIN32) || defined(ROS2_BACKEND_LYRICAL)
     return nullptr;
 #else
     return std::make_shared<Ros2NitrosBridgeImageMessageImpl>();

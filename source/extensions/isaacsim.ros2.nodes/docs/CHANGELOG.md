@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.23.0] - 2026-09-27
+### Added
+- Experimental `ROS2SubscribeImage` with a read-only CUDA image lease and explicit consumer stream for the Lyrical backend.
+
+### Changed
+- GPU image publishers use the optional Lyrical buffer capability when available, preserving the legacy CPU and NITROS paths.
+
 ## [1.22.7] - 2026-08-27
 ### Fixed
 - `SetPrimAttribute` now rejects invalid matrix JSON values without terminating Isaac Sim.

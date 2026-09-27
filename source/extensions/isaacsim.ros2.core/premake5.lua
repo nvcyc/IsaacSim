@@ -47,6 +47,18 @@ filter {}
 
 -- Build the backend for each ROS distribution
 local ros_distributions = { "humble", "jazzy" }
+-- Optional source-built Lyrical installation(s), overlay first. Never repurpose
+-- a Humble/Jazzy packman package or bundle a system Python into Kit.
+local lyrical_prefixes = {}
+local lyrical_path = os.getenv("ISAACSIM_ROS_LYRICAL_PREFIXES")
+if lyrical_path and lyrical_path ~= "" then
+    assert(os.target() == "linux", "The Lyrical CUDA backend currently supports Linux only")
+    for prefix in lyrical_path:gmatch("[^:]+") do
+        assert(os.isdir(prefix), "Invalid Lyrical prefix: " .. prefix)
+        table.insert(lyrical_prefixes, prefix)
+    end
+    table.insert(ros_distributions, "lyrical")
+end
 
 for _, ros_distro in ipairs(ros_distributions) do
     project_with_location("isaacsim.ros2.core." .. ros_distro)
@@ -58,6 +70,15 @@ for _, ros_distro in ipairs(ros_distributions) do
     staticruntime("Off")
     defines { "ROS2_BACKEND_" .. ros_distro:upper() }
     add_files("impl", "library/backend")
+    if ros_distro == "lyrical" then
+        add_files("impl", "library/lyrical")
+        for _, prefix in ipairs(lyrical_prefixes) do
+            includedirs { prefix .. "/include" }
+            includedirs(os.matchdirs(prefix .. "/include/*"))
+            libdirs { prefix .. "/lib" }
+        end
+        links { "sensor_msgs__rosidl_typesupport_cpp", "rosidl_typesupport_cpp", "rosidl_buffer", "cuda_buffer" }
+    end
     add_files("iface", "include")
     add_cuda_dependencies()
     includedirs {

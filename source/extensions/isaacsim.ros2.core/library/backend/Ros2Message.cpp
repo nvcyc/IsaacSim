@@ -629,7 +629,7 @@ Ros2NitrosBridgeImageMessageImpl::Ros2NitrosBridgeImageMessageImpl()
     : Ros2MessageInterfaceImpl(
           "isaac_ros_nitros_bridge_interfaces", "msg", "NitrosBridgeImage", BackendMessageType::eMessage, true)
 {
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(ROS2_BACKEND_LYRICAL)
     if (m_typesupportLibrary->isValid())
     {
         m_msg = create();
@@ -648,7 +648,7 @@ void Ros2NitrosBridgeImageMessageImpl::writeHeader(const double timeStamp, const
     {
         return;
     }
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(ROS2_BACKEND_LYRICAL)
     isaac_ros_nitros_bridge_interfaces__msg__NitrosBridgeImage* imageMsg =
         static_cast<isaac_ros_nitros_bridge_interfaces__msg__NitrosBridgeImage*>(m_msg);
     Ros2MessageInterfaceImpl::writeRosHeader(frameId, static_cast<int64_t>(timeStamp * 1e9), imageMsg->header);
@@ -663,7 +663,7 @@ void Ros2NitrosBridgeImageMessageImpl::generateBuffer(const uint32_t height,
     {
         return;
     }
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(ROS2_BACKEND_LYRICAL)
     isaac_ros_nitros_bridge_interfaces__msg__NitrosBridgeImage* imageMsg =
         static_cast<isaac_ros_nitros_bridge_interfaces__msg__NitrosBridgeImage*>(m_msg);
     imageMsg->height = height;
@@ -696,7 +696,7 @@ void Ros2NitrosBridgeImageMessageImpl::writeData(const std::vector<int32_t>& ima
     {
         return;
     }
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(ROS2_BACKEND_LYRICAL)
     isaac_ros_nitros_bridge_interfaces__msg__NitrosBridgeImage* imageMsg =
         static_cast<isaac_ros_nitros_bridge_interfaces__msg__NitrosBridgeImage*>(m_msg);
 
@@ -715,7 +715,7 @@ Ros2NitrosBridgeImageMessageImpl::~Ros2NitrosBridgeImageMessageImpl()
     {
         return;
     }
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(ROS2_BACKEND_LYRICAL)
     isaac_ros_nitros_bridge_interfaces__msg__NitrosBridgeImage* imageMsg =
         static_cast<isaac_ros_nitros_bridge_interfaces__msg__NitrosBridgeImage*>(m_msg);
 

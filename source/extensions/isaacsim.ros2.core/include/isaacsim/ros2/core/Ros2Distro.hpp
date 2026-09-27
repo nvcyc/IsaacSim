@@ -43,6 +43,8 @@ enum class Ros2Distro
     eHumble,
     /** @brief ROS 2 Jazzy Jalisco distribution */
     eJazzy,
+    /** @brief ROS 2 Lyrical Luth distribution (optional source-built backend) */
+    eLyrical,
     // Add new distros here
     /** @brief Count of supported distributions, keep this last */
     eCount // Keep this last
@@ -73,8 +75,9 @@ struct Ros2DistroInfo
  * Constant array of mappings between distribution names and their
  * corresponding enum values for lookup operations.
  */
-constexpr std::array<Ros2DistroInfo, 2> g_kDistroMapping{ { { "humble", Ros2Distro::eHumble },
-                                                            { "jazzy", Ros2Distro::eJazzy } } };
+constexpr std::array<Ros2DistroInfo, 3> g_kDistroMapping{ { { "humble", Ros2Distro::eHumble },
+                                                        { "jazzy", Ros2Distro::eJazzy },
+                                                        { "lyrical", Ros2Distro::eLyrical } } };
 
 /**
  * @brief Converts a string to lowercase

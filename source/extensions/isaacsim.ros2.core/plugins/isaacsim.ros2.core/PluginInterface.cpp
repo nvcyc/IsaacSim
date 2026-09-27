@@ -252,7 +252,7 @@ CARB_EXPORT void carbOnPluginStartup()
     }
 
     // Load the factory library for the current distro.
-    // For known distros (humble, jazzy) this loads the matching factory.
+    // Known distros load their matching factory. Lyrical requires its own build.
     // For unknown distros, fall back to the jazzy factory since the factory source code
     // is usually identical across distros (only the linked ROS 2 C API libs differ, and those
     // resolve from the system LD_LIBRARY_PATH at runtime).
@@ -260,6 +260,14 @@ CARB_EXPORT void carbOnPluginStartup()
         std::make_shared<isaacsim::core::includes::LibraryLoader>("isaacsim.ros2.core." + std::string(rosDistro));
     if (!g_factoryLoader->isValid())
     {
+        if (std::string(rosDistro) == "lyrical")
+        {
+            app->printAndLog("ROS 2 Lyrical requires a backend built against Lyrical. "
+                             "Could not load isaacsim.ros2.core.lyrical; check the backend build, "
+                             "sourced workspace, and LD_LIBRARY_PATH before restarting Isaac Sim.");
+            g_factoryLoader.reset();
+            return;
+        }
         std::string fallbackMsg = "[Experimental] ROS 2 '" + std::string(rosDistro) +
                                   "' sourced successfully. Isaac Sim's ROS 2 Bridge does not yet have a dedicated build "
                                   "for this distro. The existing bridge backend will be used, which is expected to work "
@@ -317,7 +325,7 @@ CARB_EXPORT void carbOnPluginShutdown()
         g_stageUpdateNode = nullptr;
     }
 
-    if (g_defaultContextHandle->isValid())
+    if (g_defaultContextHandle && g_defaultContextHandle->isValid())
     {
         CARB_LOG_INFO("rcl::shutdown()");
         g_defaultContextHandle->shutdown();

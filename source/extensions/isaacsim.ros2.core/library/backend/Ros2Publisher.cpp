@@ -14,6 +14,9 @@
 // limitations under the License.
 
 #include "Ros2Impl.hpp"
+#if defined(ROS2_BACKEND_LYRICAL)
+#    include "../lyrical/Ros2LyricalImage.hpp"
+#endif
 
 #include <isaacsim/ros2/core/Ros2Macros.hpp>
 #include <rcl/rcl.h>
@@ -45,6 +48,9 @@ Ros2PublisherImpl::Ros2PublisherImpl(Ros2NodeHandle* nodeHandle,
     // Allocate memory for publisher
     // Init publisher
     (*m_publisher) = rcl_get_zero_initialized_publisher();
+#if defined(ROS2_BACKEND_LYRICAL)
+    m_isLyricalImage = typeSupport == getLyricalImageTypeSupport();
+#endif
     rcl_publisher_options_t publisherOptions = rcl_publisher_get_default_options();
     publisherOptions.qos = Ros2QoSProfileConverter::convert(qos);
     rcl_ret_t rc = rcl_publisher_init(m_publisher.get(), static_cast<rcl_node_t*>(m_nodeHandle->getNode()),
@@ -66,6 +72,20 @@ Ros2PublisherImpl::~Ros2PublisherImpl()
 
 void Ros2PublisherImpl::publish(const void* msg)
 {
+#if defined(ROS2_BACKEND_LYRICAL)
+    if (m_isLyricalImage)
+    {
+        try
+        {
+            prepareLyricalImageForPublish(msg);
+        }
+        catch (const std::exception& error)
+        {
+            CARB_LOG_ERROR("Lyrical Image preparation failed: %s", error.what());
+            return;
+        }
+    }
+#endif
     rcl_ret_t rc = rcl_publish(m_publisher.get(), msg, nullptr);
     if (rc != RCL_RET_OK)
     {

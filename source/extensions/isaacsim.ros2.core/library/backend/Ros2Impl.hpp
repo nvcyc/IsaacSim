@@ -23,7 +23,7 @@
  */
 #pragma once
 
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(ROS2_BACKEND_LYRICAL)
 #    include "isaac_ros_nitros_bridge_interfaces/msg/nitros_bridge_image.h"
 #endif
 
@@ -809,6 +809,9 @@ public:
 private:
     Ros2NodeHandle* m_nodeHandle;
     std::shared_ptr<rcl_publisher_t> m_publisher = nullptr;
+#if defined(ROS2_BACKEND_LYRICAL)
+    bool m_isLyricalImage = false;
+#endif
 };
 
 /**

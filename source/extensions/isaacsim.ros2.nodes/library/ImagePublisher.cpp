@@ -18,6 +18,7 @@
 #include <carb/profiler/Profile.h>
 
 #include <isaacsim/ros2/nodes/ImagePublisher.hpp>
+#include <isaacsim/ros2/core/Ros2GpuImage.hpp>
 
 #include <cstring>
 
@@ -124,6 +125,22 @@ bool ImagePublisher::prepareFromDevice(const void* devicePtr,
         return false;
     }
 
+    if (auto* gpuImage = dynamic_cast<Ros2GpuImage*>(m_message.get()))
+    {
+        if (bufferSize == 0 && format != carb::Format::eR32_SFLOAT)
+        {
+            CARB_LOG_ERROR("Lyrical image texture publication supports eR32_SFLOAT only");
+            return false;
+        }
+        isaacsim::core::includes::ScopedDevice scopedDev(cudaDeviceIndex);
+        ensureCudaStream(cudaDeviceIndex);
+        m_message->writeHeader(timestamp, m_frameId);
+        if (gpuImage->prepareDeviceImage(devicePtr, bufferSize, width, height, encoding, cudaDeviceIndex, m_stream))
+        {
+            return true;
+        }
+    }
+
     if (!prepareMessage(width, height, encoding, timestamp, true))
     {
         return false;
@@ -133,6 +150,12 @@ bool ImagePublisher::prepareFromDevice(const void* devicePtr,
     void* bufPtr = m_message->getBufferPtr();
 
     isaacsim::core::includes::ScopedDevice scopedDev(cudaDeviceIndex);
+    if (dynamic_cast<Ros2GpuImage*>(m_message.get()) &&
+        (totalBytes == 0 || (bufferSize != 0 && bufferSize != totalBytes)))
+    {
+        CARB_LOG_ERROR("Invalid Lyrical image layout or buffer size");
+        return false;
+    }
     ensureCudaStream(cudaDeviceIndex);
 
     if (bufferSize == 0)
