@@ -155,6 +155,7 @@ private:
         Ros2Node::reset();
     }
 
+    NodeObj m_nodeObj{};
     std::shared_ptr<Ros2Subscriber> m_subscriber;
     std::shared_ptr<Ros2ImageMessage> m_message;
     Ros2GpuImage* m_gpuImage = nullptr;

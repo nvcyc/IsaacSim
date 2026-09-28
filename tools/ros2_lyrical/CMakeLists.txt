@@ -20,6 +20,12 @@ target_link_libraries(image_probe PRIVATE
 )
 set_target_properties(image_probe PROPERTIES CUDA_ARCHITECTURES "75;86;89")
 
+# Test-only GPU pattern producer/consumer used from a real SimulationApp process.
+add_library(runtime_image_pattern SHARED RuntimePattern.cpp ImagePattern.cu)
+target_compile_features(runtime_image_pattern PRIVATE cxx_std_17 cuda_std_17)
+target_link_libraries(runtime_image_pattern PRIVATE CUDA::cudart CUDA::cuda_driver)
+set_target_properties(runtime_image_pattern PROPERTIES CUDA_ARCHITECTURES "75;86;89")
+
 set(ISAACSIM_SDK_INCLUDE_DIRS "" CACHE STRING "Carbonite, Fabric and nlohmann include directories for bridge validation")
 if(ISAACSIM_SDK_INCLUDE_DIRS)
     set(bridge_root "${CMAKE_CURRENT_SOURCE_DIR}/../../source/extensions")

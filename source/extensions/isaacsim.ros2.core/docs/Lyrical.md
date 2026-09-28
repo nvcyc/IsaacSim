@@ -1,14 +1,19 @@
 # Lyrical image transport investigation
 
-Status: experimental implementation with standalone and bridge-message transport
-validation. **Full Kit integration and Humble/Jazzy runtime regression validation
-are outstanding.** Do not treat this patch as production-certified Lyrical support.
+Status: experimental source implementation, built and tested in the real NVIDIA
+Isaac Sim 6.1 container. Native linking, Lyrical OmniGraph image transport,
+stop/restart, rendered camera output, and targeted Humble/Jazzy/NITROS regressions
+passed. This is not a released bundled Lyrical distribution; the remaining
+coverage limits are listed below. An additional full process-teardown check
+reproduced a simulator crash even without ROS enabled; normal fast-exit test
+runs passed.
 
 ## Source boundary (6.1.0-rc.26)
 
 The authoritative source directories are `source/extensions/isaacsim.ros2.core`,
 `source/extensions/isaacsim.ros2.nodes`, and `source/extensions/isaacsim.ros2.bridge`.
 `exts/` is an installation layout, not this checkout's source layout.
+The following describes the original bridge before the Lyrical changes.
 
 * `core/plugins/isaacsim.ros2.core/PluginInterface.cpp` loads
   `isaacsim.ros2.core.<ROS_DISTRO>` and resolves `createFactoryC`.
@@ -115,9 +120,27 @@ destroyed before publishing so their producer event has been recorded.
 The provided `/home/cyc/workspaces/ros2/install` contains a generated Image with
 `std::vector<uint8_t>` and no `rosidl_buffer` package. Its RMW header has no
 `acceptable_buffer_backends`. It cannot establish Lyrical compatibility.
-This checkout has no `_build` dependencies or simulator executable. The host
-RTX 4090 is accessible outside the sandbox. Validation used an isolated official
-Lyrical container without changing the existing ROS workspace.
+The initial standalone tests used an isolated official Lyrical container.
+Subsequent integration tests used `nvcr.io/nvidia/isaac-sim:6.1.0`, whose installed
+version was `6.1.0-rc.26+release.49347.2d230af4.gl`, with Kit
+`110.3.0+feature.371399.00c488ae.gl`. The image digest was
+`sha256:af1d2b4e75d553bfa27beb5a401198654aa8d607f3b7a6749196e9ce253def20`.
+Tests ran on an RTX 4090 with host driver 580.82.07.
+
+The matching source SDK was downloaded and a full native release build completed
+in an isolated Ubuntu 24.04 environment with GCC 11, Python 3.12, and the SDK's
+CUDA 12.8 toolkit. The Lyrical source installation contained 140 built packages;
+its exact repository revisions are recorded in
+`_lyrical_validation/container-ros-sources.lock.repos`. The CUDA backend uses the
+upstream commit linked above. No host ROS/Python installation or the supplied ROS
+workspace was changed.
+
+The rebuilt core plugin, Lyrical backend, node plugin, and generated extension
+files were installed into the runtime container. The packaged Humble/Jazzy
+backend binaries were retained, and their SHA-256 hashes were unchanged before
+and after installation. Runtime checks verified the selected backend was mapped
+into each simulator process. The full build exposed a missing `m_nodeObj` member
+in the new subscriber's reset path; that compile error was fixed before testing.
 
 ## Implementation details
 
@@ -171,7 +194,9 @@ interfaces. The verified binary container was
 `ros:lyrical-ros-base@sha256:0c19f326a339ed770ef1d4c0646a8b53bdb49dd5ff74b6de41ebdb8ac21e1806`.
 Its relevant versions were `rcl 10.4.4`, `rmw_fastrtps_cpp 9.4.9`,
 `rosidl_buffer 5.2.1`, and `sensor_msgs 5.9.3`. The CUDA backend source version
-was `0.1.2` at the commit linked above. Validation used CUDA 13.2 and GCC 15.
+was `0.1.2` at the commit linked above. These initial standalone tests used
+CUDA 13.2 and GCC 15. Both probe suites were subsequently rebuilt and passed
+against the actual Kit SDK, CUDA 12.8, and the native ROS source installation.
 
 For an existing native Lyrical installation, the commands below build an
 isolated overlay; change the setup path for a source installation:
@@ -216,10 +241,10 @@ with Lyrical binary interfaces.
 
 The backend must use the **same C++ standard-library ABI, CUDA runtime ABI,
 compiler/platform baseline, and Python version where applicable as Kit**.
-The Ubuntu 26.04 container test executables are not installable Isaac plugins
-for an Ubuntu 22.04 Kit build. Build Lyrical and its CUDA overlay from source on
-the chosen Isaac build baseline when necessary. Do not copy the container's
-ROS binaries into an older host installation.
+The initial Ubuntu 26.04 container test executables are not installable Isaac
+plugins. Build Lyrical and its CUDA overlay from source on the selected Isaac
+build baseline, as done for the runtime validation above. Do not copy the
+standalone container's ROS binaries into an older host installation.
 
 Install/build the usual bridge message dependencies as well: `ackermann_msgs`,
 `vision_msgs`, `tf2_msgs`, `nav_msgs`, `geometry_msgs`, `std_msgs`, `rosgraph_msgs`,
@@ -231,16 +256,17 @@ source /path/to/kit-compatible-lyrical/install/setup.bash
 source /path/to/kit-compatible-cuda-overlay/install/setup.bash
 export ISAACSIM_ROS_LYRICAL_PREFIXES="$AMENT_PREFIX_PATH"
 cd /path/to/IsaacSim6
-./build.sh --no-docker --release
+./build.sh --release --jobs 4
 ```
 
 Premake adds `isaacsim.ros2.core.lyrical` when that variable is present. Both
 merged and isolated prefixes are accepted in overlay order. The resulting
 library is staged in the core extension's `bin` alongside Humble/Jazzy. There
 is no invented Packman Lyrical artifact or bundled Lyrical Python directory.
-Without the variable, default builds remain Humble/Jazzy-only. This full build
-was **not run** in the present checkout; source-level build wiring is provided,
-but successful Kit integration remains an acceptance gate.
+Without the variable, default builds remain Humble/Jazzy-only. The full native
+release build passed, including the Lyrical backend link and generated OmniGraph
+nodes. This revision already disables nested Docker in `repo.toml`; its build
+command does not accept `--no-docker`.
 
 Launch from the same sourced environment:
 
@@ -311,11 +337,20 @@ ISAAC_IMAGE_PROBE_FRAMES=1000 python3 tools/ros2_lyrical/test_transport.py \
 | CUDA plugin hidden from the ament index | Passed, CPU transport and H2D promotion in both directions, 30 frames each |
 | All eleven production backend sources, C++17 syntax with Lyrical | Passed using cached SDK headers; two GCC 15 diagnostics in old USD/TBB headers downgraded for this check only |
 | Python, OGN JSON, Premake Lua syntax | Passed |
-| Full Lyrical backend link and Kit graph runtime | Not run; matching 6.1 SDK/build unavailable |
-| Humble/Jazzy CPU and NITROS runtime regressions | Not run; no built simulator in this checkout |
+| Native Ubuntu 24.04 / GCC 11 / Python 3.12 Lyrical dependency build | Passed, 140 packages; standalone five-case matrix also passed |
+| Runtime harness GPU pattern helper | Passed on RTX 4090; valid pixels accepted and deliberately incorrect pixels rejected |
+| Full native release build, including core backends and generated nodes | Passed against the actual Kit SDK, GCC 11, CUDA 12.8 |
+| Real Isaac Sim Lyrical subscriber: CUDA transport and CPU promotion | Passed, 60 frames per case over two stop/play cycles |
+| Real Isaac Sim Lyrical publisher: CPU/CUDA source × CPU/CUDA peer | Passed, 60 frames per case over two stop/play cycles |
+| Packaged Humble/Jazzy backends with rebuilt core/nodes: CPU and GPU source publication | Passed, four cases, 60 frames each; external CPU Image receiver |
+| Humble/Jazzy NITROS publication | Passed, 60 frames each; descriptor metadata and every GPU pixel checked by same-process VMM import |
+| Lyrical camera integration | Passed, five distinct rendered 320×240 RGBA frames, every byte matched the CPU receiver |
+| Real Isaac Sim CUDA transport profiling | Passed in both directions, 30 frames each; exact copy counts below |
+| Full process exit with `fast_shutdown=False` | Failed in the packaged `simulation_manager` plugin, reproduced without ROS or `cuda_buffer` loaded |
 
-Nsight Systems 2025.6.3 recorded the accelerated-only case in both directions,
-30 frames each, separate processes, same host/user and RTX 4090:
+Nsight Systems 2025.6.3 first recorded the standalone production-wrapper case
+in both directions, 30 frames each, separate processes, same host/user and
+RTX 4090:
 
 | Copy kind | Calls | Total bytes | Interpretation |
 |---|---:|---:|---|
@@ -329,11 +364,36 @@ No `cudaDeviceSynchronize` occurred. The D2D GPU copy durations averaged about
 1.35 microseconds in this run; these are copy durations, **not end-to-end latency**.
 No CPU utilization, memory-bandwidth, multi-camera throughput, 1080p/60 Hz,
 long-duration leak, CPU-baseline or NITROS-baseline performance claim is made.
-Those require the full simulator and a controlled workload.
+Those require additional controlled workloads.
+
+Separate profiles then captured the **actual Isaac Sim OmniGraph nodes** and
+their external ROS peers. Capture starts after application warmup and ends after
+the measured stop cycle. All recorded memcpy operations are counted, without
+filtering out renderer copies or restricting to selected payload sizes:
+
+| Real-runtime direction | D2D payload copies | D2H copies | H2D copies |
+|---|---:|---:|---:|
+| External CUDA publisher → Isaac `ROS2SubscribeImage` | 0 | 30 × 4-byte validation result | 0 |
+| Isaac `ROS2PublishImage` → external CUDA subscriber | 30, totaling 18,432,000 bytes | 30 × 4-byte validation result | 0 |
+
+Outbound D2D consists of fifteen 307,200-byte and fifteen 921,600-byte copies,
+all in the simulator process. Inbound scalar D2H is in the simulator; outbound
+scalar D2H is in the external validator. Both traces contain CUDA VMM imports
+and exports and no `cudaDeviceSynchronize` or `cuCtxSynchronize`. Stream/event
+synchronization remains present. Thus the measured inbound path has no payload
+copy; publication is Level A with one D2D copy, and neither accelerated path
+stages the payload through host memory. This evidence covers the synthetic
+linear image workload, not every renderer or texture format.
 
 Local evidence is saved under `_lyrical_validation/` (ignored build artifacts),
 including `cuda-images.nsys-rep`, `cuda-images.sqlite`, `cuda-copy-stats.txt`,
 `copy-verification.json`, the matrix/stress logs, and source compilation logs.
+Real simulator JSON results, peer logs, and both raw and converted Nsight
+captures are in `_lyrical_validation/runtime-results/`. The final native build
+log is `_lyrical_validation/isaac61-source-rebuild.log`.
+Early runtime JSON files labeled the application version `6.1.0` as
+`kit_version`; the corrected profiling reports record Kit's actual build string
+`110.3.0+feature.371399.00c488ae.gl` separately from `app_version`.
 Reproduce profiling after building both probes:
 
 ```bash
@@ -346,18 +406,125 @@ nsys stats --report cuda_gpu_mem_size_sum,cuda_gpu_mem_time_sum,cuda_api_sum \
 python3 tools/ros2_lyrical/verify_trace.py cuda-images.sqlite
 ```
 
+## Real Isaac Sim runtime harness
+
+`tools/ros2_lyrical/test_runtime.py` creates an actual publisher or subscriber
+OmniGraph node in `SimulationApp`, checks that the dedicated Lyrical backend is
+loaded, and exchanges changing image sizes with a separate `image_probe`
+process. It checks every payload byte, then stops and restarts the graph.
+Subscriber stop checks reject stale output pointers and streams. All six
+Lyrical combinations passed in the real 6.1 runtime: two inbound transport modes
+and four outbound source/receiver combinations, totaling 360 checked frames.
+
+After rebuilding and installing the modified core and nodes extensions into a
+real 6.1 runtime, source the matching Lyrical installation before launching:
+
+```bash
+source /path/to/ros-lyrical/install/setup.bash
+export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+/path/to/isaacsim/python.sh tools/ros2_lyrical/test_runtime.py \
+  --isaac-root /path/to/isaacsim \
+  --peer "$PWD/_lyrical_probe/image_probe" \
+  --pattern-library "$PWD/_lyrical_probe/libruntime_image_pattern.so" \
+  --direction subscribe --peer-storage cuda \
+  --frames 30 --cycles 2 --output _lyrical_validation/runtime-subscribe-cuda.json
+```
+
+Also run `--direction subscribe --peer-storage cpu`, and the four combinations
+of `--direction publish --storage cpu|cuda --peer-storage cpu|cuda`, using a
+distinct output filename for each run. Inspect the JSON `status` in addition to
+the process exit code: Kit's default fast shutdown can otherwise mask a Python
+exception. The harness explicitly forwards failure status to `SimulationApp.close`.
+
+An extra `--full-shutdown` check disables Kit's default fast exit. The inbound
+test passed 60 frames, two stop/play cycles, graph removal, and returned from
+`SimulationApp.close`, then segfaulted during C++ process-exit destruction.
+GDB located the fault in the packaged
+`libisaacsim.core.simulation_manager.plugin.so`. A minimal `SimulationApp`
+without any ROS graph reproduced the same crash location; its process maps
+confirmed that neither `libisaacsim.ros2.core` nor `libcuda_buffer.so` was loaded.
+This isolates the observed crash from the new transport, but full process exit
+is still a failed acceptance check in this runtime. The Lyrical run also emitted
+a pluginlib warning about live backend objects during unload, which remains
+separate cleanup evidence and is not dismissed by the baseline reproduction.
+Both debugger logs and the minimal reproducer are saved under
+`_lyrical_validation/`. A JSON `shutdown: returned` means only that the close
+call returned; require a successful process exit as well before calling complete
+teardown passed.
+
+The harness warms up the simulator before starting the external stream and
+releases its final subscriber lease before waiting for the publisher to exit.
+Starting a live publisher during the first renderer/physics initialization
+caused stale upstream CUDA buffer identifiers when the consumer lagged behind;
+this is not a claim of lossless delivery under arbitrary startup/backpressure.
+The final lease must be released so the external CUDA allocation pool can finish
+teardown. GPU validators submit their reads on the node's exposed stream.
+
+For measured runtime copies, add `--profile --cycles 1` and wrap the command:
+
+```bash
+nsys profile --trace=cuda,nvtx --sample=none --cpuctxsw=none \
+  --trace-fork-before-exec=true --capture-range=cudaProfilerApi \
+  --capture-range-end=stop --export=sqlite -o profile-runtime-subscribe \
+  /path/to/isaacsim/python.sh tools/ros2_lyrical/test_runtime.py \
+  --isaac-root /path/to/isaacsim \
+  --peer "$PWD/_lyrical_probe/image_probe" \
+  --pattern-library "$PWD/_lyrical_probe/libruntime_image_pattern.so" \
+  --direction subscribe --storage cuda --peer-storage cuda \
+  --frames 30 --cycles 1 --profile --output profile-runtime-subscribe.json
+python3 tools/ros2_lyrical/verify_trace.py profile-runtime-subscribe.sqlite \
+  --runtime-direction subscribe
+```
+
+Repeat with `publish` and a distinct report path. The verifier checks every
+memcpy, requires VMM import evidence, and rejects device-wide synchronization.
+The container's CLI-only Nsight copy produced `.qdstrm` captures; the host's
+matching 2025.6.3 `QdstrmImporter` converted these to `.nsys-rep`, followed by
+`nsys export --type sqlite`.
+
+For legacy publication, launch with the packaged Humble or Jazzy environment,
+`--distro humble|jazzy --direction publish --peer-storage cpu`, and
+`--peer-ros-prefix /path/to/ros-lyrical/install`. The peer runs its Lyrical
+libraries in a separate process. Both CPU and GPU input passed for each legacy
+distro. Add `--nitros --storage cuda` to check the extra NITROS publisher;
+both distros passed. This observer imports the exported GPU FD in the simulator
+process and checks every pixel. It does **not** test an external Isaac ROS
+NITROS receiver's handle-transfer/acknowledgment protocol. NITROS uses fixed
+640×480 images because its existing allocation pool is fixed at initialization.
+
+`test_camera_runtime.py` separately renders a rotating cube with a CUDA camera
+annotator and sends five changing RGBA frames through `ROS2PublishImage` to a
+standard CPU ROS Image subscriber. Every received byte matched the reference.
+The test takes a D2D snapshot of the rendered allocation to stabilize its
+lifetime; reference extraction and the CPU receiver deliberately involve host
+copies. This confirms rendered image correctness, while direct renderer-buffer
+lifetime and a camera-to-GPU end-to-end profile remain separate coverage.
+
+The isolated environments are the Docker containers `isaac61-lyrical-build`
+and `isaac61-lyrical-runtime`, sharing source/dependency files in the
+`isaac61-lyrical-workspace` volume. The runtime image contains the rebuilt
+extensions; `/workspace/isaac61-runtime-env.sh` selects the native Lyrical
+installation and Kit Python. Runtime library dependencies and Python packages
+were installed only in those environments. Source manifests and build/test logs are in
+`_lyrical_validation/`. The optional upstream `rclcpp` test dependencies were
+excluded; the bridge and transport probe continue to use `rcl`.
+
 ## Remaining acceptance gates and limitations
 
 * This is an experimental Linux source-build path, not a released bundled distro.
   No Windows packaging or CI image for Lyrical is provided.
-* Validate the full Kit 6.1 build, graph wiring, stop/restart, extension shutdown,
-  renderer source ordering, and async downstream consumers before deployment.
-  The independent message probe cannot establish OmniGraph lifecycle correctness.
+* Full native build, graph wiring, and stop/restart passed in Kit 6.1. Broader
+  renderer source ordering and downstream applications with independently
+  scheduled GPU consumers still need coverage beyond these tests.
+* Non-fast process teardown fails in this simulator build even with ROS disabled,
+  as described above. The transport matrix uses the normal fast-exit setting;
+  it does not establish clean static destruction or plugin hot unload.
 * Fast DDS is the accelerated baseline. Other RMWs use CPU-only subscription
   negotiation and publication fallback; alternative RMW runtime tests remain.
 * Same-host, same-user, same-device VMM/IPC was tested. Cross-host, permission
-  failures, unsupported VMM, publisher/subscriber crashes,
-  and mixed older ROS distributions need separate failure tests. Follow upstream
+  failures, unsupported VMM, and publisher/subscriber crashes need separate
+  failure tests. Legacy-to-Lyrical CPU image interoperability passed; this is
+  not a general cross-distribution compatibility guarantee. Follow upstream
   negotiation/fallback semantics; do not infer cross-host acceleration.
   Hiding the CUDA plugin with `AMENT_PREFIX_PATH=/opt/ros/lyrical` while keeping
   its libraries loadable produced correct CPU fallback in both probe directions.

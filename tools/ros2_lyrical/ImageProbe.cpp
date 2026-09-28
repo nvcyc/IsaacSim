@@ -168,6 +168,7 @@ void publish(Session& session, bool cuda, uint32_t frames, size_t expectedSubscr
         Image message;
 #endif
         message.header.frame_id = std::to_string(sequence);
+        message.header.stamp.sec = static_cast<int32_t>(sequence);
         // Alternate sizes to expose allocation reuse and stale frame errors.
         message.width = sequence % 2 ? 640 : 1280;
         message.height = sequence % 2 ? 480 : 720;
@@ -223,16 +224,27 @@ void publish(Session& session, bool cuda, uint32_t frames, size_t expectedSubscr
     std::cout << "published=" << frames << '\n';
 }
 
-void subscribe(Session& session, bool cuda, uint32_t frames, const std::string& expectedBackend)
+void subscribe(Session& session, bool cuda, uint32_t frames, const std::string& expectedBackend, bool sequenceFromStamp)
 {
     const auto deadline = Clock::now() + std::chrono::seconds(60);
     uint32_t received = 0;
     uint32_t previousSequence = 0;
+    bool announced = false;
     while (received < frames)
     {
         if (Clock::now() > deadline)
         {
             throw std::runtime_error("Image receive timed out");
+        }
+        if (!announced)
+        {
+            size_t publishers = 0;
+            checkRos(rcl_subscription_get_publisher_count(&session.subscriber, &publishers));
+            if (publishers)
+            {
+                std::cout << "ready=subscriber" << std::endl;
+                announced = true;
+            }
         }
 #if defined(ISAAC_BRIDGE_IMAGE)
         auto bridgeMessage = std::make_unique<Ros2LyricalImageMessage>();
@@ -249,7 +261,8 @@ void subscribe(Session& session, bool cuda, uint32_t frames, const std::string& 
             continue;
         }
         checkRos(result);
-        const auto sequence = static_cast<uint32_t>(std::stoul(message.header.frame_id));
+        const auto sequence = sequenceFromStamp ? static_cast<uint32_t>(message.header.stamp.sec) :
+                                                  static_cast<uint32_t>(std::stoul(message.header.frame_id));
         if (sequence != previousSequence + 1)
         {
             throw std::runtime_error("Missing, duplicate, or reordered image");
@@ -318,9 +331,14 @@ int main(int argc, char** argv)
 {
     try
     {
-        if (argc != 6)
+        if (argc != 6 && argc != 7)
         {
-            throw std::runtime_error("Usage: image_probe pub|sub cpu|cuda /topic frames expected-subscribers|backend");
+            throw std::runtime_error(
+                "Usage: image_probe pub|sub cpu|cuda /topic frames expected-subscribers|backend [stamp]");
+        }
+        if (argc == 7 && std::string(argv[6]) != "stamp")
+        {
+            throw std::runtime_error("The optional sequence source must be stamp");
         }
         const std::string role = argv[1];
         const std::string storage = argv[2];
@@ -345,7 +363,7 @@ int main(int argc, char** argv)
         }
         else
         {
-            subscribe(session, storage == "cuda", frames, argv[5]);
+            subscribe(session, storage == "cuda", frames, argv[5], argc == 7);
         }
         return 0;
     }
